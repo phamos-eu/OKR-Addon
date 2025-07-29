@@ -1,0 +1,100 @@
+{
+ "actions": [],
+ "autoname": "field:title",
+ "creation": "2025-07-28 08:23:59.019164",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "field_order": [
+  "title",
+  "target_date",
+  "responsible_person",
+  "parent_objective",
+  "progress",
+  "key_result",
+  "column_break_auao",
+  "description",
+  "section_break_jrnw",
+  "measurables"
+ ],
+ "fields": [
+  {
+   "fieldname": "title",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "label": "Title",
+   "reqd": 1,
+   "unique": 1
+  },
+  {
+   "fieldname": "target_date",
+   "fieldtype": "Date",
+   "in_list_view": 1,
+   "label": "Target Date"
+  },
+  {
+   "fieldname": "responsible_person",
+   "fieldtype": "Link",
+   "label": "Responsible Person",
+   "options": "User"
+  },
+  {
+   "fieldname": "parent_objective",
+   "fieldtype": "Link",
+   "label": "Parent Objective",
+   "options": "Objective"
+  },
+  {
+   "fieldname": "progress",
+   "fieldtype": "Percent",
+   "in_list_view": 1,
+   "label": "Progress",
+   "read_only": 1
+  },
+  {
+   "fieldname": "column_break_auao",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "description",
+   "fieldtype": "Text",
+   "label": "Description"
+  },
+  {
+   "fieldname": "section_break_jrnw",
+   "fieldtype": "Section Break"
+  },
+  {
+   "depends_on": "eval:doc.key_result",
+   "fieldname": "measurables",
+   "fieldtype": "Table",
+   "label": "Measurables",
+   "options": "Measurable"
+  },
+  {
+   "default": "0",
+   "fieldname": "key_result",
+   "fieldtype": "Check",
+   "label": "Key Result"
+  }
+ ],
+ "links": [],
+ "modified": "2025-07-29 12:02:05.290260",
+ "modified_by": "Administrator",
+ "module": "OKR Addon",
+ "name": "Objective",
+ "naming_rule": "By fieldname",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "create": 1,
+   "delete": 1,
+   "read": 1,
+   "role": "System Manager",
+   "write": 1
+  }
+ ],
+ "row_format": "Dynamic",
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "states": []
+}

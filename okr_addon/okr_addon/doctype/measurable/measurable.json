@@ -1,0 +1,63 @@
+{
+ "actions": [],
+ "creation": "2025-07-25 08:11:18.194873",
+ "doctype": "DocType",
+ "editable_grid": 1,
+ "engine": "InnoDB",
+ "field_order": [
+  "metric_name",
+  "baseline_value",
+  "target_value",
+  "percent_complete",
+  "notes"
+ ],
+ "fields": [
+  {
+   "columns": 2,
+   "fieldname": "baseline_value",
+   "fieldtype": "Float",
+   "in_list_view": 1,
+   "label": "Baseline Value"
+  },
+  {
+   "columns": 2,
+   "fieldname": "target_value",
+   "fieldtype": "Float",
+   "in_list_view": 1,
+   "label": "Target Value"
+  },
+  {
+   "columns": 2,
+   "fieldname": "percent_complete",
+   "fieldtype": "Percent",
+   "in_list_view": 1,
+   "label": "% Complete"
+  },
+  {
+   "columns": 2,
+   "fieldname": "metric_name",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "label": "Metric Name"
+  },
+  {
+   "columns": 2,
+   "fieldname": "notes",
+   "fieldtype": "Text",
+   "in_list_view": 1,
+   "label": "Notes"
+  }
+ ],
+ "istable": 1,
+ "links": [],
+ "modified": "2025-07-29 09:45:40.493576",
+ "modified_by": "Administrator",
+ "module": "OKR Addon",
+ "name": "Measurable",
+ "owner": "Administrator",
+ "permissions": [],
+ "row_format": "Dynamic",
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "states": []
+}
