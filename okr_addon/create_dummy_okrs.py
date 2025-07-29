@@ -10,7 +10,6 @@ def run():
             'description': 'Improve customer satisfaction scores and service quality by end of year.',
             'target_date': add_days(nowdate(), 90),
             'responsible_person': frappe.session.user,
-            'progress': 0,
             'measurables': [
                 {
                     'metric_name': 'Customer Satisfaction Score',
@@ -40,7 +39,6 @@ def run():
             'description': 'Enhance team efficiency and output quality across all departments.',
             'target_date': add_days(nowdate(), 120),
             'responsible_person': frappe.session.user,
-            'progress': 0,
             'measurables': [
                 {
                     'metric_name': 'Tasks Completed per Week',
@@ -70,7 +68,6 @@ def run():
             'description': 'Optimize expenses and improve cost efficiency across all operations.',
             'target_date': add_days(nowdate(), 180),
             'responsible_person': frappe.session.user,
-            'progress': 0,
             'measurables': [
                 {
                     'metric_name': 'Infrastructure Costs ($/month)',
@@ -100,7 +97,6 @@ def run():
             'description': 'Improve product reliability and user experience through better quality assurance.',
             'target_date': add_days(nowdate(), 150),
             'responsible_person': frappe.session.user,
-            'progress': 0,
             'measurables': [
                 {
                     'metric_name': 'Bug Reports (per month)',
@@ -130,7 +126,6 @@ def run():
             'description': 'Increase market presence and customer base across new territories.',
             'target_date': add_days(nowdate(), 200),
             'responsible_person': frappe.session.user,
-            'progress': 0,
             'measurables': [
                 {
                     'metric_name': 'New Customer Acquisition (per month)',
@@ -167,7 +162,7 @@ def run():
             'description': obj_data['description'],
             'target_date': obj_data['target_date'],
             'responsible_person': obj_data['responsible_person'],
-            'progress': obj_data['progress']
+            'progress': 0  # Will be calculated in before_save
         })
         obj.insert(ignore_permissions=True)
         created_objectives.append(obj)
@@ -176,11 +171,35 @@ def run():
         for measurable_data in obj_data['measurables']:
             obj.append('measurables', measurable_data)
         
+        # Save will trigger before_save which calculates progress
         obj.save(ignore_permissions=True)
         frappe.db.commit()
     
-    frappe.db.commit()
+    # Update progress for all existing objectives
+    update_all_objective_progress()
+    
     print(f'Created {len(created_objectives)} dummy objectives with measurables.')
     print('Objectives created:')
     for obj in created_objectives:
-        print(f'- {obj.title} (ID: {obj.name})') 
+        print(f'- {obj.title} (ID: {obj.name}, Progress: {obj.progress}%)')
+
+def update_all_objective_progress():
+    """Update progress for all existing objectives"""
+    objectives = frappe.get_all("Objective", fields=["name"])
+    updated_count = 0
+    
+    for obj in objectives:
+        try:
+            doc = frappe.get_doc("Objective", obj.name)
+            old_progress = doc.progress
+            doc.progress = doc.calculate_progress()
+            
+            if old_progress != doc.progress:
+                doc.save(ignore_permissions=True)
+                updated_count += 1
+                print(f"Updated progress for {doc.title}: {old_progress}% -> {doc.progress}%")
+        except Exception as e:
+            print(f"Error updating progress for {obj.name}: {str(e)}")
+    
+    frappe.db.commit()
+    print(f"Updated progress for {updated_count} objectives.") 

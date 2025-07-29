@@ -10,6 +10,8 @@ class Objective(Document):
     
     def before_save(self):
         self.update_measurable_targets()
+        # Calculate and update progress based on measurables
+        self.progress = self.calculate_progress()
     
     def after_save(self):
         self.update_parent_objective_progress()
