@@ -95,15 +95,181 @@ function render_measurable_summary_form(frm) {
 		return;
 	}
 	
+	// Get enhanced summary from backend
+	frappe.call({
+		method: 'okr_addon.okr_addon.doctype.objective.objective.get_measurable_summary_for_frontend',
+		args: { objective_name: frm.doc.name },
+		callback: function(r) {
+			if (r.message) {
+				renderEnhancedSummary(frm, r.message);
+			} else {
+				// Fallback to basic calculation if backend method not available
+				renderBasicSummary(frm, measurables);
+			}
+		}
+	});
+}
+
+// Render enhanced summary with comprehensive metrics
+function renderEnhancedSummary(frm, summary) {
+	let card_html = `
+		<div style="width: 100%; background: white; border-radius: 12px; box-shadow: 0 2px 8px rgba(0,0,0,0.1); overflow: hidden;">
+			<div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;">
+				<!-- All 7 Circles in Single Flex Container -->
+				<div style="display: flex; justify-content: space-around; align-items: center; padding: 30px 20px; background: #f8f9fa; flex-wrap: wrap; gap: 15px;">
+					<!-- Total KRs Circle -->
+					<div style="text-align: center; flex: 1; min-width: 80px;">
+						<div style="position: relative; width: 70px; height: 70px; margin: 0 auto 8px;">
+							<svg width="70" height="70" viewBox="0 0 70 70">
+								<circle cx="35" cy="35" r="30" fill="none" stroke="#e9ecef" stroke-width="5"/>
+								<circle cx="35" cy="35" r="30" fill="none" stroke="#2c3e50" stroke-width="5" 
+									stroke-dasharray="${2 * Math.PI * 30}" stroke-dashoffset="${2 * Math.PI * 30 * (1 - 1)}" 
+									transform="rotate(-90 35 35)" style="transition: stroke-dashoffset 0.5s ease;"/>
+							</svg>
+							<div style="position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); font-size: 1em; font-weight: 700; color: #2c3e50;">${summary.total}</div>
+						</div>
+						<div style="color: #7f8c8d; font-size: 0.8em; font-weight: 500;">Total KRs</div>
+					</div>
+					
+					<!-- Completed Circle -->
+					<div style="text-align: center; flex: 1; min-width: 80px;">
+						<div style="position: relative; width: 70px; height: 70px; margin: 0 auto 8px;">
+							<svg width="70" height="70" viewBox="0 0 70 70">
+								<circle cx="35" cy="35" r="30" fill="none" stroke="#e9ecef" stroke-width="5"/>
+								<circle cx="35" cy="35" r="30" fill="none" stroke="#27ae60" stroke-width="5" 
+									stroke-dasharray="${2 * Math.PI * 30}" stroke-dashoffset="${2 * Math.PI * 30 * (1 - (summary.completed / summary.total))}" 
+									transform="rotate(-90 35 35)" style="transition: stroke-dashoffset 0.5s ease;"/>
+							</svg>
+							<div style="position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); font-size: 1em; font-weight: 700; color: #27ae60;">${summary.completed}</div>
+						</div>
+						<div style="color: #27ae60; font-size: 0.8em; font-weight: 500;">✅ Completed</div>
+					</div>
+					
+					<!-- In Progress Circle -->
+					<div style="text-align: center; flex: 1; min-width: 80px;">
+						<div style="position: relative; width: 70px; height: 70px; margin: 0 auto 8px;">
+							<svg width="70" height="70" viewBox="0 0 70 70">
+								<circle cx="35" cy="35" r="30" fill="none" stroke="#e9ecef" stroke-width="5"/>
+								<circle cx="35" cy="35" r="30" fill="none" stroke="#f39c12" stroke-width="5" 
+									stroke-dasharray="${2 * Math.PI * 30}" stroke-dashoffset="${2 * Math.PI * 30 * (1 - (summary.in_progress / summary.total))}" 
+									transform="rotate(-90 35 35)" style="transition: stroke-dashoffset 0.5s ease;"/>
+							</svg>
+							<div style="position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); font-size: 1em; font-weight: 700; color: #f39c12;">${summary.in_progress}</div>
+						</div>
+						<div style="color: #f39c12; font-size: 0.8em; font-weight: 500;">🔄 In Progress</div>
+					</div>
+					
+					<!-- Not Started Circle -->
+					<div style="text-align: center; flex: 1; min-width: 80px;">
+						<div style="position: relative; width: 70px; height: 70px; margin: 0 auto 8px;">
+							<svg width="70" height="70" viewBox="0 0 70 70">
+								<circle cx="35" cy="35" r="30" fill="none" stroke="#e9ecef" stroke-width="5"/>
+								<circle cx="35" cy="35" r="30" fill="none" stroke="#e74c3c" stroke-width="5" 
+									stroke-dasharray="${2 * Math.PI * 30}" stroke-dashoffset="${2 * Math.PI * 30 * (1 - (summary.not_started / summary.total))}" 
+									transform="rotate(-90 35 35)" style="transition: stroke-dashoffset 0.5s ease;"/>
+							</svg>
+							<div style="position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); font-size: 1em; font-weight: 700; color: #e74c3c;">${summary.not_started}</div>
+						</div>
+						<div style="color: #e74c3c; font-size: 0.8em; font-weight: 500;">⏳ Not Started</div>
+					</div>
+					
+					<!-- On Track Circle -->
+					<div style="text-align: center; flex: 1; min-width: 80px;">
+						<div style="position: relative; width: 70px; height: 70px; margin: 0 auto 8px;">
+							<svg width="70" height="70" viewBox="0 0 70 70">
+								<circle cx="35" cy="35" r="30" fill="none" stroke="#e9ecef" stroke-width="5"/>
+								<circle cx="35" cy="35" r="30" fill="none" stroke="#27ae60" stroke-width="5" 
+									stroke-dasharray="${2 * Math.PI * 30}" stroke-dashoffset="${2 * Math.PI * 30 * (1 - (summary.on_track / summary.total))}" 
+									transform="rotate(-90 35 35)" style="transition: stroke-dashoffset 0.5s ease;"/>
+							</svg>
+							<div style="position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); font-size: 1em; font-weight: 700; color: #27ae60;">${summary.on_track}</div>
+						</div>
+						<div style="color: #27ae60; font-size: 0.8em; font-weight: 500;">🟢 On Track</div>
+					</div>
+					
+					<!-- At Risk Circle -->
+					<div style="text-align: center; flex: 1; min-width: 80px;">
+						<div style="position: relative; width: 70px; height: 70px; margin: 0 auto 8px;">
+							<svg width="70" height="70" viewBox="0 0 70 70">
+								<circle cx="35" cy="35" r="30" fill="none" stroke="#e9ecef" stroke-width="5"/>
+								<circle cx="35" cy="35" r="30" fill="none" stroke="#f39c12" stroke-width="5" 
+									stroke-dasharray="${2 * Math.PI * 30}" stroke-dashoffset="${2 * Math.PI * 30 * (1 - (summary.at_risk / summary.total))}" 
+									transform="rotate(-90 35 35)" style="transition: stroke-dashoffset 0.5s ease;"/>
+							</svg>
+							<div style="position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); font-size: 1em; font-weight: 700; color: #f39c12;">${summary.at_risk}</div>
+						</div>
+						<div style="color: #f39c12; font-size: 0.8em; font-weight: 500;">🟡 At Risk</div>
+					</div>
+					
+					<!-- Overdue Circle -->
+					<div style="text-align: center; flex: 1; min-width: 80px;">
+						<div style="position: relative; width: 70px; height: 70px; margin: 0 auto 8px;">
+							<svg width="70" height="70" viewBox="0 0 70 70">
+								<circle cx="35" cy="35" r="30" fill="none" stroke="#e9ecef" stroke-width="5"/>
+								<circle cx="35" cy="35" r="30" fill="none" stroke="#e74c3c" stroke-width="5" 
+									stroke-dasharray="${2 * Math.PI * 30}" stroke-dashoffset="${2 * Math.PI * 30 * (1 - (summary.overdue_count / summary.total))}" 
+									transform="rotate(-90 35 35)" style="transition: stroke-dashoffset 0.5s ease;"/>
+							</svg>
+							<div style="position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); font-size: 1em; font-weight: 700; color: #e74c3c;">${summary.overdue_count}</div>
+						</div>
+						<div style="color: #e74c3c; font-size: 0.8em; font-weight: 500;">🔴 Overdue</div>
+					</div>
+				</div>
+				
+				<!-- Progress & Health Section -->
+				<div style="padding: 25px; background: #f8f9fa;">
+					<div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
+						<div style="font-weight: 600; color: #2c3e50; font-size: 1.1em;">📈 Progress Overview</div>
+						<div style="display: flex; gap: 20px;">
+							<div style="text-align: center; background: white; padding: 10px 15px; border-radius: 8px; box-shadow: 0 1px 3px rgba(0,0,0,0.1);">
+								<div style="font-weight: bold; color: #27ae60; font-size: 1.2em;">${summary.average_progress}%</div>
+								<div style="font-size: 0.8em; color: #7f8c8d;">Avg Progress</div>
+							</div>
+							<div style="text-align: center; background: white; padding: 10px 15px; border-radius: 8px; box-shadow: 0 1px 3px rgba(0,0,0,0.1);">
+								<div style="font-weight: bold; color: #3498db; font-size: 1.2em;">${summary.overall_health}</div>
+								<div style="font-size: 0.8em; color: #7f8c8d;">Health Score</div>
+							</div>
+						</div>
+					</div>
+					
+					<!-- Progress Bar -->
+					<div style="background: #e9ecef; border-radius: 10px; height: 12px; overflow: hidden; margin-bottom: 20px; box-shadow: inset 0 1px 3px rgba(0,0,0,0.1);">
+						<div style="background: linear-gradient(90deg, #27ae60, #2ecc71); height: 100%; width: ${summary.average_progress}%; transition: width 0.5s ease; border-radius: 10px;"></div>
+					</div>
+					
+					<!-- Additional Metrics -->
+					<div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 15px;">
+						<div style="text-align: center; background: white; padding: 15px; border-radius: 8px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); border-left: 4px solid #27ae60;">
+							<div style="font-weight: 600; color: #2c3e50; font-size: 1.3em;">${summary.completion_rate}%</div>
+							<div style="font-size: 0.85em; color: #7f8c8d; font-weight: 500;">Completion Rate</div>
+						</div>
+						<div style="text-align: center; background: white; padding: 15px; border-radius: 8px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); border-left: 4px solid #e74c3c;">
+							<div style="font-weight: 600; color: #2c3e50; font-size: 1.3em;">${summary.risk_score}%</div>
+							<div style="font-size: 0.85em; color: #7f8c8d; font-weight: 500;">Risk Score</div>
+						</div>
+					</div>
+				</div>
+				
+
+			</div>
+		</div>
+	`;
+	
+	// Add the enhanced summary to form dashboard
+	frm.dashboard.add_section(
+		card_html,
+		__('📊 Measurable Summary')
+	);
+}
+
+// Render basic summary as fallback
+function renderBasicSummary(frm, measurables) {
 	let summary = {
 		total: measurables.length,
 		completed: 0,
 		in_progress: 0,
 		not_started: 0,
-		average_progress: 0,
-		on_track: 0,
-		at_risk: 0,
-		overdue: 0
+		average_progress: 0
 	};
 	
 	let total_progress = 0;
@@ -117,14 +283,6 @@ function render_measurable_summary_form(frm) {
 			summary.not_started++;
 		}
 		
-		if (measurable.percent_complete >= 80) {
-			summary.on_track++;
-		} else if (measurable.percent_complete >= 40) {
-			summary.at_risk++;
-		} else {
-			summary.overdue++;
-		}
-		
 		if (measurable.percent_complete) {
 			total_progress += measurable.percent_complete;
 		}
@@ -132,52 +290,96 @@ function render_measurable_summary_form(frm) {
 	
 	summary.average_progress = summary.total > 0 ? (total_progress / summary.total).toFixed(1) : 0;
 	let overall_progress = summary.total > 0 ? (total_progress / summary.total) : 0;
-	let progress_color = get_progress_color(overall_progress);
 	
 	let card_html = `
-		<div style="width: 100%;">
+		<div style="width: 100%; background: white; border-radius: 12px; box-shadow: 0 2px 8px rgba(0,0,0,0.1); overflow: hidden;">
 			<div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;">
-				<!-- Stats Grid -->
-				<div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 15px; padding: 20px; border-bottom: 1px solid #e1e8ed;">
-					<div style="text-align: center;">
-						<div style="font-size: 2em; font-weight: 700; color: #27ae60;">${summary.total}</div>
-						<div style="color: #7f8c8d;">Total</div>
+				<!-- All 4 Circles in Single Flex Container -->
+				<div style="display: flex; justify-content: space-around; align-items: center; padding: 30px 20px; background: #f8f9fa; flex-wrap: wrap; gap: 15px;">
+					<!-- Total KRs Circle -->
+					<div style="text-align: center; flex: 1; min-width: 80px;">
+						<div style="position: relative; width: 70px; height: 70px; margin: 0 auto 8px;">
+							<svg width="70" height="70" viewBox="0 0 70 70">
+								<circle cx="35" cy="35" r="30" fill="none" stroke="#e9ecef" stroke-width="5"/>
+								<circle cx="35" cy="35" r="30" fill="none" stroke="#2c3e50" stroke-width="5" 
+									stroke-dasharray="${2 * Math.PI * 30}" stroke-dashoffset="${2 * Math.PI * 30 * (1 - 1)}" 
+									transform="rotate(-90 35 35)" style="transition: stroke-dashoffset 0.5s ease;"/>
+							</svg>
+							<div style="position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); font-size: 1em; font-weight: 700; color: #2c3e50;">${summary.total}</div>
+						</div>
+						<div style="color: #7f8c8d; font-size: 0.8em; font-weight: 500;">Total KRs</div>
 					</div>
-					<div style="text-align: center;">
-						<div style="font-size: 2em; font-weight: 700; color: #27ae60;">${summary.completed}</div>
-						<div style="color: #7f8c8d;">✅ Completed</div>
+					
+					<!-- Completed Circle -->
+					<div style="text-align: center; flex: 1; min-width: 80px;">
+						<div style="position: relative; width: 70px; height: 70px; margin: 0 auto 8px;">
+							<svg width="70" height="70" viewBox="0 0 70 70">
+								<circle cx="35" cy="35" r="30" fill="none" stroke="#e9ecef" stroke-width="5"/>
+								<circle cx="35" cy="35" r="30" fill="none" stroke="#27ae60" stroke-width="5" 
+									stroke-dasharray="${2 * Math.PI * 30}" stroke-dashoffset="${2 * Math.PI * 30 * (1 - (summary.completed / summary.total))}" 
+									transform="rotate(-90 35 35)" style="transition: stroke-dashoffset 0.5s ease;"/>
+							</svg>
+							<div style="position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); font-size: 1em; font-weight: 700; color: #27ae60;">${summary.completed}</div>
+						</div>
+						<div style="color: #27ae60; font-size: 0.8em; font-weight: 500;">✅ Completed</div>
 					</div>
-					<div style="text-align: center;">
-						<div style="font-size: 2em; font-weight: 700; color: #f39c12;">${summary.in_progress}</div>
-						<div style="color: #7f8c8d;">🔄 In Progress</div>
+					
+					<!-- In Progress Circle -->
+					<div style="text-align: center; flex: 1; min-width: 80px;">
+						<div style="position: relative; width: 70px; height: 70px; margin: 0 auto 8px;">
+							<svg width="70" height="70" viewBox="0 0 70 70">
+								<circle cx="35" cy="35" r="30" fill="none" stroke="#e9ecef" stroke-width="5"/>
+								<circle cx="35" cy="35" r="30" fill="none" stroke="#f39c12" stroke-width="5" 
+									stroke-dasharray="${2 * Math.PI * 30}" stroke-dashoffset="${2 * Math.PI * 30 * (1 - (summary.in_progress / summary.total))}" 
+									transform="rotate(-90 35 35)" style="transition: stroke-dashoffset 0.5s ease;"/>
+							</svg>
+							<div style="position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); font-size: 1em; font-weight: 700; color: #f39c12;">${summary.in_progress}</div>
+						</div>
+						<div style="color: #f39c12; font-size: 0.8em; font-weight: 500;">🔄 In Progress</div>
 					</div>
-					<div style="text-align: center;">
-						<div style="font-size: 2em; font-weight: 700; color: #e74c3c;">${summary.not_started}</div>
-						<div style="color: #7f8c8d;">⏳ Not Started</div>
+					
+					<!-- Not Started Circle -->
+					<div style="text-align: center; flex: 1; min-width: 80px;">
+						<div style="position: relative; width: 70px; height: 70px; margin: 0 auto 8px;">
+							<svg width="70" height="70" viewBox="0 0 70 70">
+								<circle cx="35" cy="35" r="30" fill="none" stroke="#e9ecef" stroke-width="5"/>
+								<circle cx="35" cy="35" r="30" fill="none" stroke="#e74c3c" stroke-width="5" 
+									stroke-dasharray="${2 * Math.PI * 30}" stroke-dashoffset="${2 * Math.PI * 30 * (1 - (summary.not_started / summary.total))}" 
+									transform="rotate(-90 35 35)" style="transition: stroke-dashoffset 0.5s ease;"/>
+							</svg>
+							<div style="position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); font-size: 1em; font-weight: 700; color: #e74c3c;">${summary.not_started}</div>
+						</div>
+						<div style="color: #e74c3c; font-size: 0.8em; font-weight: 500;">⏳ Not Started</div>
 					</div>
 				</div>
 				
 				<!-- Progress Overview -->
-				<div style="padding: 10px;">
-					<div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
-						<div style="font-weight: 600; color: #2c3e50;">Progress Overview</div>
-						<div style="font-weight: bold;">${summary.average_progress}% avg</div>
+				<div style="padding: 25px; background: #f8f9fa;">
+					<div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
+						<div style="font-weight: 600; color: #2c3e50; font-size: 1.1em;">📈 Progress Overview</div>
+						<div style="text-align: center; background: white; padding: 10px 15px; border-radius: 8px; box-shadow: 0 1px 3px rgba(0,0,0,0.1);">
+							<div style="font-weight: bold; color: #27ae60; font-size: 1.2em;">${summary.average_progress}%</div>
+							<div style="font-size: 0.8em; color: #7f8c8d;">Avg Progress</div>
+						</div>
 					</div>
-					<div style="background: #f8f9fa; border-radius: 6px; height: 8px; overflow: hidden;">
-						<div style="background: linear-gradient(90deg, #27ae60, #2ecc71); height: 100%; width: ${overall_progress}%; transition: width 0.3s ease;"></div>
+					
+					<!-- Progress Bar -->
+					<div style="background: #e9ecef; border-radius: 10px; height: 12px; overflow: hidden; margin-bottom: 20px; box-shadow: inset 0 1px 3px rgba(0,0,0,0.1);">
+						<div style="background: linear-gradient(90deg, #27ae60, #2ecc71); height: 100%; width: ${overall_progress}%; transition: width 0.5s ease; border-radius: 10px;"></div>
 					</div>
 				</div>
 			</div>
 		</div>
 	`;
 	
-	// Add the summary to form dashboard with collapsible functionality
+	// Add the basic summary to form dashboard
 	frm.dashboard.add_section(
 		card_html,
 		__('📊 Measurable Summary')
-		
 	);
 }
+
+
 
 // Helper functions for enhanced UI
 function get_progress_color(percentage) {

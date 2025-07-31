@@ -1,0 +1,91 @@
+{
+ "actions": [],
+ "autoname": "field:objective",
+ "creation": "2025-01-27 10:00:00.000000",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "field_order": [
+  "objective",
+  "check_in_date",
+  "progress_update",
+  "confidence_update",
+  "key_updates",
+  "blockers_identified",
+  "next_actions",
+  "overall_status"
+ ],
+ "fields": [
+  {
+   "fieldname": "objective",
+   "fieldtype": "Link",
+   "label": "Objective",
+   "options": "Objective",
+   "reqd": 1
+  },
+  {
+   "default": "Today",
+   "fieldname": "check_in_date",
+   "fieldtype": "Date",
+   "label": "Check-in Date",
+   "reqd": 1
+  },
+  {
+   "fieldname": "progress_update",
+   "fieldtype": "Percent",
+   "label": "Progress Update",
+   "description": "Current progress percentage"
+  },
+  {
+   "fieldname": "confidence_update",
+   "fieldtype": "Percent",
+   "label": "Confidence Update",
+   "description": "Updated confidence level (0-100%)"
+  },
+  {
+   "fieldname": "key_updates",
+   "fieldtype": "Text Editor",
+   "label": "Key Updates",
+   "description": "What has been accomplished since last check-in?"
+  },
+  {
+   "fieldname": "blockers_identified",
+   "fieldtype": "Text",
+   "label": "Blockers Identified",
+   "description": "Any new blockers or challenges?"
+  },
+  {
+   "fieldname": "next_actions",
+   "fieldtype": "Text",
+   "label": "Next Actions",
+   "description": "What will be done before next check-in?"
+  },
+  {
+   "default": "On Track",
+   "fieldname": "overall_status",
+   "fieldtype": "Select",
+   "label": "Overall Status",
+   "options": "On Track\nAt Risk\nOff Track\nCompleted"
+  }
+ ],
+ "links": [],
+ "modified": "2025-01-27 10:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "OKR Addon",
+ "name": "OKR Check In",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "print": 1,
+   "read": 1,
+   "role": "System Manager",
+   "share": 1,
+   "write": 1
+  }
+ ],
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "track_changes": 1
+} 
