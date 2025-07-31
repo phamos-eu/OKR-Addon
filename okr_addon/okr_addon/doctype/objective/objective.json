@@ -46,6 +46,7 @@
    "fieldname": "okr_type",
    "fieldtype": "Select",
    "in_list_view": 1,
+   "in_standard_filter": 1,
    "label": "OKR Type",
    "options": "Company\nTeam\nIndividual",
    "reqd": 1
@@ -66,6 +67,7 @@
   {
    "fieldname": "responsible_person",
    "fieldtype": "Link",
+   "in_standard_filter": 1,
    "label": "Responsible Person",
    "options": "User"
   },
@@ -124,6 +126,7 @@
    "fieldtype": "Float",
    "in_list_view": 1,
    "label": "OKR Score",
+   "precision": "1",
    "read_only": 1
   },
   {
@@ -195,7 +198,7 @@
   }
  ],
  "links": [],
- "modified": "2025-07-30 12:22:41.569526",
+ "modified": "2025-07-31 15:34:02.020306",
  "modified_by": "Administrator",
  "module": "OKR Addon",
  "name": "Objective",
