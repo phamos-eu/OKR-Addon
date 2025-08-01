@@ -137,6 +137,7 @@ def calculate_comprehensive_stats(objectives):
     overall_progress = sum(obj.progress or 0 for obj in objectives) / total
     avg_confidence = sum(obj.confidence_level or 0 for obj in objectives) / total
     avg_okr_score = sum(obj.okr_score or 0 for obj in objectives) / total
+    avg_health_score = sum(obj['health_score'] or 0 for obj in objectives) / total
     
     # Type distribution
     company_okrs = sum(1 for obj in objectives if obj.okr_type == 'Company')
@@ -158,6 +159,7 @@ def calculate_comprehensive_stats(objectives):
         "overall_progress": round(overall_progress, 1),
         "avg_confidence": round(avg_confidence, 1),
         "avg_okr_score": round(avg_okr_score, 2),
+        "avg_health_score": round(avg_health_score, 1),
         "completion_rate": round((completed / total) * 100, 1),
         "risk_rate": round((at_risk / total) * 100, 1),
         "type_distribution": {
@@ -402,8 +404,30 @@ def calculate_health_score(objective):
     try:
         doc = frappe.get_doc("Objective", objective.name)
         summary = doc.get_measurable_summary()
-        return summary.get('overall_health', 0)
-    except:
+        health_score = summary.get('overall_health', 0)
+        
+        # If health score is 0 and we have objective data, calculate a simple health score
+        if health_score == 0 and objective.progress is not None:
+            progress_score = objective.progress or 0
+            confidence_score = objective.confidence_level or 50
+            days_remaining = calculate_days_remaining(objective)
+            
+            # Simple health calculation based on progress, confidence, and timeline
+            if days_remaining is not None:
+                if days_remaining < 0:  # Overdue
+                    timeline_penalty = min(30, abs(days_remaining) * 2)
+                elif days_remaining <= 7:  # Due soon
+                    timeline_penalty = 10
+                else:
+                    timeline_penalty = 0
+            else:
+                timeline_penalty = 0
+            
+            health_score = max(0, (progress_score + confidence_score) / 2 - timeline_penalty)
+        
+        return round(health_score, 1)
+    except Exception as e:
+        frappe.log_error(f"Error calculating health score for {objective.name}: {str(e)}")
         return 0
 
 def calculate_days_remaining(objective):
@@ -490,26 +514,12 @@ def get_empty_stats():
         "overall_progress": 0,
         "avg_confidence": 0,
         "avg_okr_score": 0,
+        "avg_health_score": 0,
         "completion_rate": 0,
         "risk_rate": 0,
         "type_distribution": {"company": 0, "team": 0, "individual": 0},
         "timeline": {"overdue": 0, "due_soon": 0, "on_time": 0}
     }
-
-@frappe.whitelist()
-def get_objective_details(objective_name):
-    """Get detailed information for a specific objective"""
-    try:
-        doc = frappe.get_doc("Objective", objective_name)
-        return {
-            "objective": doc.as_dict(),
-            "measurables_summary": doc.get_measurable_summary(),
-            "risk_summary": doc.get_risk_summary(),
-            "child_objectives": get_child_objectives(objective_name)
-        }
-    except Exception as e:
-        frappe.log_error(f"Error getting objective details: {str(e)}")
-        return {"error": str(e)}
 
 @frappe.whitelist()
 def export_dashboard_data(filters=None, format="excel"):

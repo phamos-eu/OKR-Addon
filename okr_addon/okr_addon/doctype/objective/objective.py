@@ -211,10 +211,6 @@ class Objective(Document):
                 if measurable.time_bound:
                     days_remaining = (getdate(measurable.time_bound) - today).days
                     progress_ratio = measurable.percent_complete / 100
-                    frappe.log_error("measurable: ",  {
-                        "days_remaining": str(days_remaining),
-                        "progress_ratio": str(progress_ratio)
-                    })
                     if days_remaining < 0:  # Overdue
                         overdue_count += 1
                         at_risk += 1
@@ -276,6 +272,11 @@ class Objective(Document):
     def _calculate_overall_health(self, progress_dist, confidence_dist, overdue_count, total):
         """Calculate overall health score (0-100)"""
         if total == 0:
+            # If no measurables, calculate health based on objective progress and confidence
+            if hasattr(self, 'progress') and hasattr(self, 'confidence_level'):
+                progress_score = self.progress or 0
+                confidence_score = self.confidence_level or 50
+                return round((progress_score + confidence_score) / 2, 1)
             return 0
         
         # Weight factors
@@ -292,12 +293,16 @@ class Objective(Document):
             progress_dist["critical"] * 20
         ) / total
         
-        # Confidence score (0-100)
-        confidence_score = (
-            confidence_dist["high"] * 100 +
-            confidence_dist["medium"] * 70 +
-            confidence_dist["low"] * 40
-        ) / total
+        # Confidence score (0-100) - handle case where no confidence data
+        confidence_score = 0
+        if sum(confidence_dist.values()) > 0:
+            confidence_score = (
+                confidence_dist["high"] * 100 +
+                confidence_dist["medium"] * 70 +
+                confidence_dist["low"] * 40
+            ) / sum(confidence_dist.values())
+        else:
+            confidence_score = 50  # Default to neutral if no confidence data
         
         # Timeline score (0-100) - penalize overdue items
         timeline_score = max(0, 100 - (overdue_count / total) * 50)
