@@ -214,9 +214,8 @@
 
 /* Objectives Section */
 .objectives-section {
-    padding: 0 1rem 2rem 1rem;
     max-width: 1200px;
-    margin: 0 auto;
+    margin: -25px auto 0 auto;
 }
 
 .section-header {
@@ -781,7 +780,7 @@
             padding: 10px 0px;
         }
 
-        /* Override page-body max-width */
+        /* Override page-body max-width - ONLY for OKR dashboard page */
         #page-okr_dashboard .page-body {
             max-width: 100% !important;
             width: 100% !important;
@@ -1206,7 +1205,7 @@
         }
 
         .hierarchy-row.level-1 {
-            background: #f8f9fa;
+            background: #f1f4f7;
         }
 
         .hierarchy-row.level-2 {
@@ -1217,24 +1216,38 @@
             background: #e8eaed;
         }
 
-        .hierarchy-indicator {
-            display: inline-block;
-            width: 16px;
-            height: 16px;
-            margin-right: 0.5rem;
-            cursor: pointer;
-            transition: transform 0.2s ease;
-            color: #6c757d;
-            font-size: 0.75rem;
-        }
+        /* Hierarchy Indicators */
+.hierarchy-indicator {
+    cursor: pointer;
+    margin-right: 8px;
+    color: #007bff;
+    font-size: 12px;
+    transition: all 0.2s ease;
+    display: inline-block;
+    width: 16px;
+    text-align: center;
+}
 
-        .hierarchy-indicator.expanded {
-            transform: rotate(90deg);
-        }
+.hierarchy-indicator:hover {
+    color: #0056b3;
+    transform: scale(1.1);
+}
 
-        .hierarchy-indicator.collapsed {
-            transform: rotate(0deg);
-        }
+.hierarchy-indicator.collapsed i {
+    color: #6c757d;
+}
+
+.hierarchy-indicator.expanded i {
+    color: #007bff;
+}
+
+/* Ensure Font Awesome icons are visible */
+.hierarchy-indicator i {
+    font-family: 'FontAwesome';
+    font-style: normal;
+    font-weight: normal;
+    line-height: 1;
+}
 
         .hierarchy-content {
             display: flex;
@@ -1496,3 +1509,120 @@
                 height: 250px;
             }
         }
+
+/* Table Footer Styles - CBAM Report Design */
+.table-footer {
+    background: #f8f9fa;
+    padding: 1rem 1.5rem;
+    border-top: 1px solid #dee2e6;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 1rem;
+    border-radius: 0 0 8px 8px;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+.footer-left {
+    display: flex;
+    align-items: center;
+    gap: 2rem;
+    flex-wrap: wrap;
+}
+
+.data-display {
+    font-size: 0.9rem;
+    color: #495057;
+    font-weight: 500;
+}
+
+.data-display strong {
+    color: #2c3e50;
+    font-weight: 600;
+}
+
+.rows-per-load {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.rows-per-load label {
+    font-size: 0.85rem;
+    color: #6c757d;
+    font-weight: 500;
+    white-space: nowrap;
+}
+
+.rows-selector {
+    padding: 0.25rem 0.5rem;
+    border: 1px solid #ced4da;
+    border-radius: 4px;
+    font-size: 0.85rem;
+    background: white;
+    min-width: 60px;
+}
+
+.rows-selector:focus {
+    outline: none;
+    border-color: #007bff;
+    box-shadow: 0 0 0 0.2rem rgba(0, 123, 255, 0.25);
+}
+
+.footer-right {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+}
+
+.load-more-btn {
+    background: #343a40;
+    border-color: #343a40;
+    color: white;
+    padding: 0.5rem 1rem;
+    font-size: 0.85rem;
+    font-weight: 500;
+    border-radius: 4px;
+    transition: all 0.2s ease;
+}
+
+.load-more-btn:hover {
+    background: #23272b;
+    border-color: #23272b;
+    transform: translateY(-1px);
+}
+
+.export-btn {
+    background: #6c757d;
+    border-color: #6c757d;
+    color: white;
+    padding: 0.5rem 1rem;
+    font-size: 0.85rem;
+    font-weight: 500;
+    border-radius: 4px;
+    transition: all 0.2s ease;
+}
+
+.export-btn:hover {
+    background: #5a6268;
+    border-color: #5a6268;
+    transform: translateY(-1px);
+}
+
+@media (max-width: 768px) {
+    .table-footer {
+        flex-direction: column;
+        align-items: stretch;
+        gap: 1rem;
+    }
+    
+    .footer-left {
+        justify-content: space-between;
+        gap: 1rem;
+    }
+    
+    .footer-right {
+        justify-content: center;
+    }
+}

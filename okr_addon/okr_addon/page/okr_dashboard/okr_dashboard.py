@@ -9,8 +9,8 @@ def get_context(context):
     context.title = _("OKR Dashboard")
 
 @frappe.whitelist()
-def get_dashboard_data(filters = None):
-    """Get comprehensive dashboard data with advanced filtering"""
+def get_dashboard_data(filters = None, page = 1, items_per_page = 50):
+    """Get comprehensive dashboard data with advanced filtering and pagination"""
     try:
         # Parse filters
         if filters:
@@ -18,43 +18,58 @@ def get_dashboard_data(filters = None):
         else:
             filters = {}
         
-        # Get objectives with enhanced filtering
-        objectives = get_filtered_objectives(filters)
+        # Convert page and items_per_page to integers
+        page = int(page) if page else 1
+        items_per_page = int(items_per_page) if items_per_page else 50
         
-        # Calculate comprehensive statistics
+        # Get all objectives for hierarchy building (no pagination for data)
+        objectives, total_count = get_filtered_objectives(filters, 1, 1000)  # Get all objectives
+        
+        # Apply pagination to the returned data for UI
+        start_idx = (page - 1) * items_per_page
+        end_idx = start_idx + items_per_page
+        paginated_objectives = objectives[start_idx:end_idx]
+        
+        # Calculate comprehensive statistics using all objectives
         stats = calculate_comprehensive_stats(objectives)
         
-        # Get hierarchical data (parent-child relationships)
+        # Get hierarchical data using all objectives
         hierarchy_data = get_hierarchy_data(objectives)
         
-        # Get performance metrics
+        # Get performance metrics using all objectives
         performance_metrics = get_performance_metrics(objectives)
         
         # Get timeline data
         timeline_data = get_timeline_data(filters)
         
-        # Get risk analysis
+        # Get risk analysis using all objectives
         risk_analysis = get_risk_analysis(objectives)
         
-        # Get team/individual performance
+        # Get team/individual performance using all objectives
         team_performance = get_team_performance(objectives)
         
-        return {
-            "objectives": objectives,
+        response_data = {
+            "objectives": objectives,  # Return all objectives for hierarchy
             "stats": stats,
             "hierarchy_data": hierarchy_data,
             "performance_metrics": performance_metrics,
             "timeline_data": timeline_data,
             "risk_analysis": risk_analysis,
             "team_performance": team_performance,
-            "filters": filters
+            "filters": filters,
+            "total_items": total_count,
+            "current_page": page,
+            "items_per_page": items_per_page,
+            "total_pages": (total_count + items_per_page - 1) // items_per_page
         }
+        
+        return response_data
     except Exception as e:
         frappe.log_error(f"Error in get_dashboard_data: {str(e)}")
         return {"error": str(e)}
 
-def get_filtered_objectives(filters):
-    """Get objectives with advanced filtering"""
+def get_filtered_objectives(filters, page=1, items_per_page=50):
+    """Get objectives with advanced filtering and pagination"""
     filter_conditions = {}
     
     # Date filtering
@@ -92,17 +107,24 @@ def get_filtered_objectives(filters):
     if filters.get('responsible_person'):
         filter_conditions['responsible_person'] = filters['responsible_person']
     
-    # Get objectives
+    # Get total count first
+    total_count = frappe.db.count("Objective", filters=filter_conditions)
+    
+    # Calculate offset for pagination
+    offset = (page - 1) * items_per_page
+    
+    # Get objectives with pagination
     objectives = frappe.get_all(
         "Objective",
         filters=filter_conditions,
         fields=[
             "name", "title", "progress", "responsible_person", "target_date", 
-            "creation", "modified", "okr_type", "parent_company_okr", 
-            "confidence_level", "okr_score", "check_in_frequency", "last_check_in", 
-            "next_check_in"
+            "last_check_in", "okr_type", "parent_objective", "parent_company_okr", "creation", "modified",
+            "owner", "docstatus", "idx", "okr_score", "confidence_level"
         ],
-        order_by="creation desc"
+        order_by="creation desc",
+        limit_start=offset,
+        limit_page_length=items_per_page
     )
     
     # Post-process for complex filters
@@ -111,13 +133,13 @@ def get_filtered_objectives(filters):
     
     # Add computed fields
     for objective in objectives:
-        objective['measurables_summary'] = get_measurables_summary(objective.name)
+        objective['measurables_summary'] = get_measurables_summary(objective['name'])
         objective['health_score'] = calculate_health_score(objective)
         objective['days_remaining'] = calculate_days_remaining(objective)
         objective['status_category'] = get_status_category(objective)
-        objective['child_objectives'] = get_child_objectives(objective.name)
+        objective['child_objectives'] = get_child_objectives(objective['name'])
     
-    return objectives
+    return objectives, total_count
 
 def calculate_comprehensive_stats(objectives):
     """Calculate comprehensive dashboard statistics"""
@@ -223,9 +245,10 @@ def get_performance_metrics(objectives):
             progress_dist["critical"] += 1
         
         # Confidence distribution
-        if obj.confidence_level >= 80:
+        confidence_level = obj.confidence_level or 0
+        if confidence_level >= 80:
             confidence_dist["high"] += 1
-        elif obj.confidence_level >= 60:
+        elif confidence_level >= 60:
             confidence_dist["medium"] += 1
         else:
             confidence_dist["low"] += 1
@@ -322,7 +345,7 @@ def get_risk_analysis(objectives):
         if obj['days_remaining'] < 0:
             risk_factors["overdue"] += 1
         
-        # Low confidence
+        # Risk factors
         if obj.confidence_level and obj.confidence_level < 50:
             risk_factors["low_confidence"] += 1
         

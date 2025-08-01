@@ -39,6 +39,14 @@ const OKR_DASHBOARD_CONFIG = {
 const DashboardState = {
     data: {},
     filters: { ...OKR_DASHBOARD_CONFIG.DEFAULT_FILTERS },
+    pagination: {
+        currentPage: 1,
+        itemsPerPage: 50,
+        totalItems: 0,
+        hasMore: true,
+        startItem: 1,
+        endItem: 50
+    },
     
     updateData(newData) {
         this.data = newData;
@@ -46,10 +54,58 @@ const DashboardState = {
     
     updateFilters(newFilters) {
         this.filters = { ...this.filters, ...newFilters };
+        // Reset pagination when filters change
+        this.pagination.currentPage = 1;
+        this.pagination.hasMore = true;
+        this.data = {}; // Clear existing data
+        this.updatePaginationDisplay();
     },
     
     resetFilters() {
         this.filters = { ...OKR_DASHBOARD_CONFIG.DEFAULT_FILTERS };
+        this.pagination.currentPage = 1;
+        this.pagination.hasMore = true;
+        this.data = {}; // Clear existing data
+        this.updatePaginationDisplay();
+    },
+    
+    updatePagination(totalItems) {
+        this.pagination.totalItems = totalItems;
+        this.pagination.hasMore = this.pagination.currentPage * this.pagination.itemsPerPage < totalItems;
+        this.updatePaginationDisplay();
+    },
+    
+    updatePaginationDisplay() {
+        const start = (this.pagination.currentPage - 1) * this.pagination.itemsPerPage + 1;
+        const end = Math.min(this.pagination.currentPage * this.pagination.itemsPerPage, this.pagination.totalItems);
+        this.pagination.startItem = start;
+        this.pagination.endItem = end;
+        
+        // Update to show actual loaded items count
+        if (this.data.objectives && this.data.objectives.length > 0) {
+            this.pagination.endItem = Math.min(start + this.data.objectives.length - 1, this.pagination.totalItems);
+        }
+    },
+    
+    nextPage() {
+        if (this.pagination.hasMore) {
+            this.pagination.currentPage++;
+            return true;
+        }
+        return false;
+    },
+    
+    resetPagination() {
+        this.pagination.currentPage = 1;
+        this.pagination.hasMore = true;
+        this.updatePaginationDisplay();
+    },
+    
+    setItemsPerPage(itemsPerPage) {
+        this.pagination.itemsPerPage = itemsPerPage;
+        this.pagination.currentPage = 1;
+        this.pagination.hasMore = true;
+        this.updatePaginationDisplay();
     }
 };
 
@@ -252,20 +308,36 @@ const DataManager = {
         frappe.call({
             method: 'okr_addon.okr_addon.page.okr_dashboard.okr_dashboard.get_dashboard_data',
             args: {
-                filters: JSON.stringify(DashboardState.filters)
+                filters: JSON.stringify(DashboardState.filters),
+                page: DashboardState.pagination.currentPage,
+                items_per_page: DashboardState.pagination.itemsPerPage
             },
             callback: (r) => {
                 if (r.message) {
+                    // Always replace data to maintain hierarchy structure
                     DashboardState.updateData(r.message);
+                    DashboardState.updatePagination(r.message.total_items || 0);
                     DashboardRenderer.updateDashboard();
                 } else {
-                    console.log('No data received from server');
+                    console.error('Failed to load dashboard data');
                 }
             },
-            error: (err) => {
-                console.error('Error loading dashboard data:', err);
+            error: (r) => {
+                console.error('Error loading dashboard data:', r);
             }
         });
+    },
+
+    loadMoreData() {
+        if (DashboardState.pagination.hasMore) {
+            DashboardState.pagination.currentPage++;
+            DataManager.loadDashboardData();
+        }
+    },
+
+    changeItemsPerPage(itemsPerPage) {
+        DashboardState.setItemsPerPage(itemsPerPage);
+        this.loadDashboardData();
     }
 };
 
@@ -451,8 +523,8 @@ const HierarchyManager = {
             <tr class="hierarchy-row level-${level}" data-level="${level}" data-id="${item.name}" data-parent="${item.parent_company_okr || ''}">
                 <td>
                     <div style="display: flex; align-items: center;">
-                        <span class="hierarchy-indicator collapsed" onclick="HierarchyManager.toggleHierarchy(this)" style="display: ${hasChildren ? 'inline-block' : 'none'}">
-                            <i class="fa fa-chevron-right"></i>
+                        <span class="hierarchy-indicator expanded" onclick="HierarchyManager.toggleHierarchy(this)" style="display: ${hasChildren ? 'inline-block' : 'none'}">
+                            <i class="fas fa-chevron-down"></i>
                         </span>
                         ${item.name}
                     </div>
@@ -507,12 +579,12 @@ const HierarchyManager = {
         if (indicator.hasClass('expanded')) {
             // Collapse
             indicator.removeClass('expanded').addClass('collapsed');
-            indicator.find('i').removeClass('fa-chevron-down').addClass('fa-chevron-right');
+            indicator.find('i').removeClass('fas fa-chevron-down').addClass('fas fa-chevron-right');
             $(`.hierarchy-row[data-parent="${id}"]`).hide();
         } else {
             // Expand
             indicator.removeClass('collapsed').addClass('expanded');
-            indicator.find('i').removeClass('fa-chevron-right').addClass('fa-chevron-down');
+            indicator.find('i').removeClass('fas fa-chevron-right').addClass('fas fa-chevron-down');
             $(`.hierarchy-row[data-parent="${id}"]`).show();
         }
     },
@@ -525,7 +597,7 @@ const HierarchyManager = {
             
             if (hasChildren) {
                 indicator.removeClass('collapsed').addClass('expanded');
-                indicator.find('i').removeClass('fa-chevron-right').addClass('fa-chevron-down');
+                indicator.find('i').removeClass('fas fa-chevron-right').addClass('fas fa-chevron-down');
                 $(`.hierarchy-row[data-parent="${id}"]`).show();
             }
         });
@@ -535,7 +607,7 @@ const HierarchyManager = {
         $('.hierarchy-indicator').each(function() {
             const indicator = $(this);
             indicator.removeClass('expanded').addClass('collapsed');
-            indicator.find('i').removeClass('fa-chevron-down').addClass('fa-chevron-right');
+            indicator.find('i').removeClass('fas fa-chevron-down').addClass('fas fa-chevron-right');
         });
         $('.hierarchy-row[data-level="1"], .hierarchy-row[data-level="2"], .hierarchy-row[data-level="3"]').hide();
     }
@@ -566,15 +638,60 @@ const DashboardRenderer = {
 
     renderHierarchicalTable() {
         const objectives = DashboardState.data.objectives || [];
+        
         const tbody = $('#hierarchy-tbody');
         tbody.empty();
         
         const hierarchy = HierarchyManager.buildHierarchy(objectives);
         
-        hierarchy.forEach(item => {
+        hierarchy.forEach((item, index) => {
             const row = HierarchyManager.createHierarchyRow(item, 0);
             tbody.append(row);
         });
+
+        // Add footer if it doesn't exist
+        if ($('.table-footer').length === 0) {
+            const footerHTML = `
+                <div class="table-footer">
+                    <div class="footer-left">
+                        <span class="data-display">Showing <strong>${DashboardState.pagination.startItem}-${DashboardState.pagination.endItem}</strong> of <strong>${DashboardState.pagination.totalItems}</strong></span>
+                        <div class="rows-per-load">
+                            <label style="margin-bottom: 0rem !important;">Rows per load:</label>
+                            <select class="rows-selector" onchange="DataManager.changeItemsPerPage(this.value)">
+                                <option value="25" ${DashboardState.pagination.itemsPerPage === 25 ? 'selected' : ''}>25</option>
+                                <option value="50" ${DashboardState.pagination.itemsPerPage === 50 ? 'selected' : ''}>50</option>
+                                <option value="100" ${DashboardState.pagination.itemsPerPage === 100 ? 'selected' : ''}>100</option>
+                                <option value="200" ${DashboardState.pagination.itemsPerPage === 200 ? 'selected' : ''}>200</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="footer-right">
+                        ${DashboardState.pagination.hasMore ? `
+                            <button class="btn btn-primary load-more-btn" onclick="DataManager.loadMoreData()">
+                                Load More
+                            </button>
+                        ` : ''}
+                    </div>
+                </div>
+            `;
+            $('.table-responsive').after(footerHTML);
+        } else {
+            // Update existing footer
+            const actualEndItem = DashboardState.data.objectives ? 
+                Math.min(DashboardState.pagination.startItem + DashboardState.data.objectives.length - 1, DashboardState.pagination.totalItems) : 
+                DashboardState.pagination.endItem;
+            
+            $('.data-display').html(`Showing <strong>${DashboardState.pagination.startItem}-${actualEndItem}</strong> of <strong>${DashboardState.pagination.totalItems}</strong>`);
+            $('.rows-selector').val(DashboardState.pagination.itemsPerPage);
+            
+            if (DashboardState.pagination.hasMore) {
+                if ($('.load-more-btn').length === 0) {
+                    $('.footer-right').prepend('<button class="btn btn-primary load-more-btn" onclick="DataManager.loadMoreData()">Load More</button>');
+                }
+            } else {
+                $('.load-more-btn').remove();
+            }
+        }
     }
 };
 
@@ -637,6 +754,7 @@ frappe.pages['okr_dashboard'].on_page_load = function (wrapper) {
 
 const DashboardInitializer = {
     init(page) {
+        // Inject CSS only for OKR dashboard page
         this.addToggleButton();
         this.renderPageLayout(page);
         this.initializeComponents();
@@ -780,7 +898,7 @@ const DashboardInitializer = {
                                     <h4>Progress Distribution</h4>
                                     <div class="chart-actions">
                                         <button class="btn btn-sm btn-outline-secondary" onclick="UIControls.toggleChart('progress-chart')">
-                                            <i class="fas fa-expand"></i>
+                                            <i class="fa fa-expand"></i>
                                         </button>
                                     </div>
                                 </div>
@@ -791,7 +909,7 @@ const DashboardInitializer = {
                                     <h4>Timeline Analysis</h4>
                                     <div class="chart-actions">
                                         <button class="btn btn-sm btn-outline-secondary" onclick="UIControls.toggleChart('timeline-chart')">
-                                            <i class="fas fa-expand"></i>
+                                            <i class="fa fa-expand"></i>
                                         </button>
                                     </div>
                                 </div>
@@ -804,7 +922,7 @@ const DashboardInitializer = {
                                     <h4>Risk Analysis</h4>
                                     <div class="chart-actions">
                                         <button class="btn btn-sm btn-outline-secondary" onclick="UIControls.toggleChart('risk-chart')">
-                                            <i class="fas fa-expand"></i>
+                                            <i class="fa fa-expand"></i>
                                         </button>
                                     </div>
                                 </div>
@@ -815,7 +933,7 @@ const DashboardInitializer = {
                                     <h4>Performance Trends</h4>
                                     <div class="chart-actions">
                                         <button class="btn btn-sm btn-outline-secondary" onclick="UIControls.toggleChart('trends-chart')">
-                                            <i class="fas fa-expand"></i>
+                                            <i class="fa fa-expand"></i>
                                         </button>
                                     </div>
                                 </div>
@@ -831,10 +949,10 @@ const DashboardInitializer = {
                                 <h3>Objectives and Key Results</h3>
                                 <div class="table-actions">
                                     <button class="btn btn-sm btn-outline-primary" onclick="HierarchyManager.expandAll()">
-                                        <i class="fas fa-expand"></i> Expand All
+                                        <i class="fa fa-expand"></i> Expand All
                                     </button>
                                     <button class="btn btn-sm btn-outline-secondary" onclick="HierarchyManager.collapseAll()">
-                                        <i class="fas fa-compress"></i> Collapse All
+                                        <i class="fa fa-compress"></i> Collapse All
                                     </button>
                                 </div>
                             </div>
