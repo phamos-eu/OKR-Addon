@@ -824,7 +824,7 @@
             border-radius: 12px;
             box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
             border: 1px solid #e9ecef;
-            max-height: calc(100vh - 60px);
+            height: 80vh;
             position: fixed;
             left: 40px;
             z-index: 999;
@@ -885,6 +885,19 @@
             padding: 0.75rem;
             font-size: 0.9rem;
             transition: all 0.3s ease;
+            height: 35px;
+            min-height: 35px;
+            box-sizing: border-box;
+        }
+
+        /* Ensure all sidebar inputs have consistent height */
+        .sidebar-content .form-control,
+        .sidebar-content select,
+        .sidebar-content input,
+        .sidebar-content .link-field-container .form-control {
+            height: 35px !important;
+            min-height: 35px !important;
+            box-sizing: border-box !important;
         }
 
         .filter-group .form-control:focus {
@@ -1603,7 +1616,9 @@
     border-radius: 4px;
     transition: all 0.2s ease;
 }
-
+.link-field-container{
+    margin-top: -25px;
+}
 .export-btn:hover {
     background: #5a6268;
     border-color: #5a6268;

@@ -217,12 +217,13 @@ const FilterManager = {
     init() {
         this.bindFilterEvents();
         this.loadResponsiblePersons();
+        this.setupResponsiblePersonField();
     },
 
     bindFilterEvents() {
         $('#date-filter').on('change', this.handleDateFilterChange.bind(this));
         $('#okr-type-filter').on('change', this.handleFilterChange.bind(this));
-        $('#responsible-filter').on('change', this.handleFilterChange.bind(this));
+        $('#responsible-filter').on('change', this.handleResponsibleFilterChange.bind(this));
         $('#from-date, #to-date').on('change', this.handleFilterChange.bind(this));
     },
 
@@ -245,11 +246,29 @@ const FilterManager = {
         DataManager.loadDashboardData();
     },
 
+    handleResponsibleFilterChange() {
+        const filters = this.getCurrentFilters();
+        
+        // Clear existing data when filters change
+        DashboardState.data = {};
+        DashboardState.pagination.currentPage = 1;
+        DashboardState.pagination.hasMore = true;
+        
+        DashboardState.updateFilters(filters);
+        DataManager.loadDashboardData();
+    },
+
     getCurrentFilters() {
+        // Get responsible person value directly from link field
+        let responsiblePerson = '';
+        if (this.responsibleField) {
+            responsiblePerson = this.responsibleField.get_value() || '';
+        }
+        
         return {
             date_range: $('#date-filter').val() || '',
             okr_type: $('#okr-type-filter').val() || '',
-            responsible_person: $('#responsible-filter').val() || '',
+            responsible_person: responsiblePerson,
             from_date: $('#from-date').val() || '',
             to_date: $('#to-date').val() || ''
         };
@@ -258,12 +277,20 @@ const FilterManager = {
     clearFilters() {
         $('#date-filter').val('');
         $('#okr-type-filter').val('');
-        $('#responsible-filter').val('');
+        if (this.responsibleField) {
+            this.responsibleField.set_value('');
+        }
         $('.custom-date-group').hide();
         $('#from-date').val('');
         $('#to-date').val('');
         
+        // Reset dashboard state and clear existing data
         DashboardState.resetFilters();
+        DashboardState.data = {};
+        DashboardState.pagination.currentPage = 1;
+        DashboardState.pagination.hasMore = true;
+        
+        // Force reload of dashboard data to show all records
         DataManager.loadDashboardData();
     },
 
@@ -271,7 +298,12 @@ const FilterManager = {
         const filters = DashboardState.filters;
         if (filters.date_range) $('#date-filter').val(filters.date_range);
         if (filters.okr_type) $('#okr-type-filter').val(filters.okr_type);
-        if (filters.responsible_person) $('#responsible-filter').val(filters.responsible_person);
+        if (filters.responsible_person && this.responsibleField) {
+            this.responsibleField.set_value(filters.responsible_person);
+            if (this.responsibleHiddenField) {
+                this.responsibleHiddenField.val(filters.responsible_person);
+            }
+        }
         if (filters.from_date) $('#from-date').val(filters.from_date);
         if (filters.to_date) $('#to-date').val(filters.to_date);
         
@@ -282,18 +314,63 @@ const FilterManager = {
     },
 
     loadResponsiblePersons() {
+        // This method is now handled by setupResponsiblePersonField
+    },
+
+    setupResponsiblePersonField() {
+        // Remove the existing input and hidden field
+        $('#responsible-filter, #responsible-filter-hidden').remove();
+        
+        // Create a new container for the link field
+        const container = $('<div class="link-field-container"></div>');
+        $('.link-field-wrapper').append(container);
+        
+        // Create Frappe standard link field using the correct pattern
+        const linkField = frappe.ui.form.make_control({
+            parent: container,
+            df: {
+                fieldname: 'responsible_person',
+                fieldtype: 'Link',
+                options: 'User',
+                placeholder: 'Search user...',
+                label: ''
+            },
+            render_input: true
+        });
+        
+        // Refresh the control to ensure proper initialization
+        linkField.refresh();
+        
+        // Add proper event listener with value change detection
+        linkField.df.onchange = () => {
+            const value = linkField.get_value();
+            console.log('Link field onchange triggered with value:', value);
+            
+            // Only trigger if value has actually changed
+            if (value !== this.lastResponsiblePersonValue) {
+                this.lastResponsiblePersonValue = value;
+                this.handleResponsibleFilterChange();
+            }
+        };
+        
+        this.responsibleField = linkField;
+        this.lastResponsiblePersonValue = '';
+    },
+    setResponsiblePersonDisplay(userId) {
+        if (!userId) return;
+        
         frappe.call({
-            method: 'frappe.client.get_list',
+            method: 'frappe.client.get_value',
             args: {
                 doctype: 'User',
-                fields: ['name', 'full_name'],
-                filters: { 'enabled': 1 }
+                filters: { name: userId },
+                fieldname: 'full_name'
             },
             callback: (r) => {
-                const select = $('#responsible-filter');
-                r.message.forEach(user => {
-                    select.append(`<option value="${user.name}">${user.full_name || user.name}</option>`);
-                });
+                if (r.message && this.responsibleField) {
+                    const displayName = r.message.full_name || userId;
+                    this.responsibleField.val(displayName);
+                }
             }
         });
     }
@@ -727,13 +804,28 @@ const UIControls = {
     },
 
     addScrollListener() {
+        let lastScrollTop = 0;
+        
         $(window).on('scroll', function() {
             const sidebar = $('.dashboard-sidebar');
-            if ($(window).scrollTop() > 40) {
+            const scrollTop = $(window).scrollTop();
+            const windowHeight = $(window).height();
+            const scrollPercentage = (scrollTop / windowHeight) * 100;
+            const isScrollingUp = scrollTop < lastScrollTop;
+            
+            if (scrollPercentage > 10) {
                 sidebar.addClass('scrolled');
+                if (isScrollingUp) {
+                    sidebar.css('top', 'unset'); // When scrolling up, use unset
+                } else {
+                    sidebar.css('top', '70px'); // When scrolling down, shift up
+                }
             } else {
                 sidebar.removeClass('scrolled');
+                sidebar.css('top', 'unset'); // Reset to original position
             }
+            
+            lastScrollTop = scrollTop;
         });
     }
 };
@@ -819,11 +911,7 @@ const DashboardInitializer = {
                         </div>
                         <div class="filter-group">
                             <label>Responsible Person:</label>
-                            <div class="custom-select-wrapper">
-                                <select id="responsible-filter" class="custom-select">
-                                    <option value="">All People</option>
-                                </select>
-                            </div>
+                            <div class="link-field-wrapper"></div>
                         </div>
                     </div>
                 </div>
