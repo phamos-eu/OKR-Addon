@@ -2,7 +2,10 @@
 // OKR Dashboard - Modular Architecture
 // ============================================================================
 
-// Global Configuration
+/**
+ * Global configuration object for OKR Dashboard
+ * @type {Object}
+ */
 const OKR_DASHBOARD_CONFIG = {
     CHART_HEIGHT: 300,
     DEFAULT_FILTERS: {
@@ -48,7 +51,15 @@ const DashboardState = {
         endItem: 50
     },
     
+    /**
+     * Updates dashboard data with validation
+     * @param {Object} newData - The new data to set
+     */
     updateData(newData) {
+        if (!newData || typeof newData !== 'object') {
+            console.warn('Invalid data provided to updateData:', newData);
+            return;
+        }
         this.data = newData;
     },
     
@@ -184,29 +195,7 @@ const DashboardUtils = {
         return labelMap[type] || 'KR';
     },
 
-    // DOM manipulation utilities
-    createElement(tag, className, innerHTML) {
-        const element = document.createElement(tag);
-        if (className) element.className = className;
-        if (innerHTML) element.innerHTML = innerHTML;
-        return element;
-    },
 
-    // Chart configuration utilities
-    getChartConfig(type, data, options = {}) {
-        const baseConfig = {
-            chart: {
-                type: type,
-                height: OKR_DASHBOARD_CONFIG.CHART_HEIGHT
-            },
-            title: {
-                text: options.title || ''
-            },
-            ...options
-        };
-        
-        return baseConfig;
-    }
 };
 
 // ============================================================================
@@ -214,10 +203,23 @@ const DashboardUtils = {
 // ============================================================================
 
 const FilterManager = {
+    filterTimeout: null,
+    
     init() {
         this.bindFilterEvents();
-        this.loadResponsiblePersons();
         this.setupResponsiblePersonField();
+    },
+    
+    cleanup() {
+        // Clear any pending timeouts
+        if (this.filterTimeout) {
+            clearTimeout(this.filterTimeout);
+            this.filterTimeout = null;
+        }
+        
+        // Remove event listeners
+        $(window).off('scroll.dashboard');
+        $('.dashboard-sidebar').off('change');
     },
 
     bindFilterEvents() {
@@ -247,15 +249,19 @@ const FilterManager = {
     },
 
     handleResponsibleFilterChange() {
-        const filters = this.getCurrentFilters();
-        
-        // Clear existing data when filters change
-        DashboardState.data = {};
-        DashboardState.pagination.currentPage = 1;
-        DashboardState.pagination.hasMore = true;
-        
-        DashboardState.updateFilters(filters);
-        DataManager.loadDashboardData();
+        // Debounce filter changes to prevent excessive API calls
+        clearTimeout(this.filterTimeout);
+        this.filterTimeout = setTimeout(() => {
+            const filters = this.getCurrentFilters();
+            
+            // Clear existing data when filters change
+            DashboardState.data = {};
+            DashboardState.pagination.currentPage = 1;
+            DashboardState.pagination.hasMore = true;
+            
+            DashboardState.updateFilters(filters);
+            DataManager.loadDashboardData();
+        }, 300);
     },
 
     getCurrentFilters() {
@@ -294,28 +300,7 @@ const FilterManager = {
         DataManager.loadDashboardData();
     },
 
-    restoreFilters() {
-        const filters = DashboardState.filters;
-        if (filters.date_range) $('#date-filter').val(filters.date_range);
-        if (filters.okr_type) $('#okr-type-filter').val(filters.okr_type);
-        if (filters.responsible_person && this.responsibleField) {
-            this.responsibleField.set_value(filters.responsible_person);
-            if (this.responsibleHiddenField) {
-                this.responsibleHiddenField.val(filters.responsible_person);
-            }
-        }
-        if (filters.from_date) $('#from-date').val(filters.from_date);
-        if (filters.to_date) $('#to-date').val(filters.to_date);
-        
-        // Show custom date inputs if needed
-        if (filters.date_range === 'custom') {
-            $('.custom-date-group').show();
-        }
-    },
 
-    loadResponsiblePersons() {
-        // This method is now handled by setupResponsiblePersonField
-    },
 
     setupResponsiblePersonField() {
         // Remove the existing input and hidden field
@@ -356,24 +341,7 @@ const FilterManager = {
         this.responsibleField = linkField;
         this.lastResponsiblePersonValue = '';
     },
-    setResponsiblePersonDisplay(userId) {
-        if (!userId) return;
-        
-        frappe.call({
-            method: 'frappe.client.get_value',
-            args: {
-                doctype: 'User',
-                filters: { name: userId },
-                fieldname: 'full_name'
-            },
-            callback: (r) => {
-                if (r.message && this.responsibleField) {
-                    const displayName = r.message.full_name || userId;
-                    this.responsibleField.val(displayName);
-                }
-            }
-        });
-    }
+
 };
 
 // ============================================================================
@@ -381,7 +349,24 @@ const FilterManager = {
 // ============================================================================
 
 const DataManager = {
+    isLoading: false,
+    
+    showLoading() {
+        this.isLoading = true;
+        $('.dashboard-main').addClass('loading');
+        $('.loading-spinner').show();
+    },
+    
+    hideLoading() {
+        this.isLoading = false;
+        $('.dashboard-main').removeClass('loading');
+        $('.loading-spinner').hide();
+    },
+    
     loadDashboardData() {
+        if (this.isLoading) return; // Prevent multiple simultaneous requests
+        
+        this.showLoading();
         frappe.call({
             method: 'okr_addon.okr_addon.page.okr_dashboard.okr_dashboard.get_dashboard_data',
             args: {
@@ -390,6 +375,7 @@ const DataManager = {
                 items_per_page: DashboardState.pagination.itemsPerPage
             },
             callback: (r) => {
+                this.hideLoading();
                 if (r.message) {
                     // Always replace data to maintain hierarchy structure
                     DashboardState.updateData(r.message);
@@ -397,10 +383,13 @@ const DataManager = {
                     DashboardRenderer.updateDashboard();
                 } else {
                     console.error('Failed to load dashboard data');
+                    frappe.show_alert('Failed to load dashboard data', 3);
                 }
             },
             error: (r) => {
+                this.hideLoading();
                 console.error('Error loading dashboard data:', r);
+                frappe.show_alert('Error loading dashboard data', 3);
             }
         });
     },
@@ -430,6 +419,9 @@ const ChartManager = {
         this.updateTrendsChart();
     },
 
+    /**
+     * Updates the progress distribution chart
+     */
     updateProgressChart() {
         const performanceMetrics = DashboardState.data.performance_metrics || {};
         const progressDist = performanceMetrics.progress_distribution || {};
@@ -442,7 +434,11 @@ const ChartManager = {
             { name: 'Critical', y: progressDist.critical || 0, color: OKR_DASHBOARD_CONFIG.CHART_COLORS.CRITICAL }
         ];
         
-        const config = DashboardUtils.getChartConfig('pie', chartData, {
+        const config = {
+            chart: {
+                type: 'pie',
+                height: OKR_DASHBOARD_CONFIG.CHART_HEIGHT
+            },
             title: { text: 'Progress Distribution' },
             series: [{
                 name: 'Objectives',
@@ -458,7 +454,7 @@ const ChartManager = {
                     }
                 }
             }
-        });
+        };
         
         Highcharts.chart('progress-chart', config);
     },
@@ -473,7 +469,11 @@ const ChartManager = {
             { name: 'On Time', y: stats.timeline?.on_time || 0, color: OKR_DASHBOARD_CONFIG.CHART_COLORS.ON_TIME }
         ];
         
-        const config = DashboardUtils.getChartConfig('column', chartData, {
+        const config = {
+            chart: {
+                type: 'column',
+                height: OKR_DASHBOARD_CONFIG.CHART_HEIGHT
+            },
             title: { text: 'Timeline Analysis' },
             xAxis: {
                 categories: ['Overdue', 'Due Soon', 'On Time']
@@ -493,7 +493,7 @@ const ChartManager = {
                              OKR_DASHBOARD_CONFIG.CHART_COLORS.ON_TIME]
                 }
             }
-        });
+        };
         
         Highcharts.chart('timeline-chart', config);
     },
@@ -510,7 +510,11 @@ const ChartManager = {
             { name: 'No Check-ins', y: riskPercentages.no_check_ins || 0 }
         ];
         
-        const config = DashboardUtils.getChartConfig('bar', chartData, {
+        const config = {
+            chart: {
+                type: 'bar',
+                height: OKR_DASHBOARD_CONFIG.CHART_HEIGHT
+            },
             title: { text: 'Risk Analysis' },
             xAxis: {
                 categories: ['Overdue', 'Low Confidence', 'Low Progress', 'No Measurables', 'No Check-ins']
@@ -531,7 +535,7 @@ const ChartManager = {
                     }
                 }
             }
-        });
+        };
         
         Highcharts.chart('risk-chart', config);
     },
@@ -543,7 +547,11 @@ const ChartManager = {
         const progressData = timelineData.progress || [0, 0, 0, 0, 0, 0];
         const confidenceData = timelineData.confidence || [0, 0, 0, 0, 0, 0];
         
-        const config = DashboardUtils.getChartConfig('line', null, {
+        const config = {
+            chart: {
+                type: 'line',
+                height: OKR_DASHBOARD_CONFIG.CHART_HEIGHT
+            },
             title: { text: 'Performance Trends' },
             xAxis: { categories: labels },
             yAxis: { title: { text: 'Percentage' } },
@@ -561,7 +569,7 @@ const ChartManager = {
                     marker: { enabled: true }
                 }
             }
-        });
+        };
         
         Highcharts.chart('trends-chart', config);
     }
@@ -699,7 +707,6 @@ const DashboardRenderer = {
         this.updateMetrics();
         ChartManager.updateAllCharts();
         this.renderHierarchicalTable();
-        FilterManager.restoreFilters();
     },
 
     updateMetrics() {
@@ -844,13 +851,17 @@ frappe.pages['okr_dashboard'].on_page_load = function (wrapper) {
     DashboardInitializer.init(page);
 };
 
+// Cleanup when page is unloaded
+frappe.pages['okr_dashboard'].on_page_unload = function () {
+    FilterManager.cleanup();
+    DataManager.hideLoading();
+};
+
 const DashboardInitializer = {
     init(page) {
         // Inject CSS only for OKR dashboard page
         this.addToggleButton();
         this.renderPageLayout(page);
-        this.initializeComponents();
-        this.loadInitialData();
     },
 
     addToggleButton() {
@@ -863,213 +874,33 @@ const DashboardInitializer = {
     },
 
     renderPageLayout(page) {
-        $(page.body).html(this.getPageTemplate());
+        this.loadTemplate(page);
     },
 
-    getPageTemplate() {
-        return `
-            <div class="okr-dashboard-container">
-                <!-- Sidebar Filters -->
-                <div class="dashboard-sidebar">
-                    <div class="sidebar-header">
-                        <h4><i class="fa fa-filter"></i> Filters</h4>
-                        <button class="btn btn-secondary btn-sm clear-filter-btn" onclick="FilterManager.clearFilters()">
-                            <i class="fa fa-times"></i> Clear
-                        </button>
-                    </div>
-                    <div class="sidebar-content">
-                        <div class="filter-group">
-                            <label>Date Range:</label>
-                            <div class="custom-select-wrapper">
-                                <select id="date-filter" class="custom-select">
-                                    <option value="all">All Time</option>
-                                    <option value="this_month">This Month</option>
-                                    <option value="this_quarter">This Quarter</option>
-                                    <option value="custom">Custom Range</option>
-                                </select>
-                            </div>
-                        </div>
-                        <div class="filter-group custom-date-group" style="display: none;">
-                            <label>From Date:</label>
-                            <input type="date" id="from-date" class="form-control">
-                        </div>
-                        <div class="filter-group custom-date-group" style="display: none;">
-                            <label>To Date:</label>
-                            <input type="date" id="to-date" class="form-control">
-                        </div>
-
-                        <div class="filter-group">
-                            <label>OKR Type:</label>
-                            <div class="custom-select-wrapper">
-                                <select id="okr-type-filter" class="custom-select">
-                                    <option value="">All Types</option>
-                                    <option value="Company">Company</option>
-                                    <option value="Team">Team</option>
-                                    <option value="Individual">Individual</option>
-                                </select>
-                            </div>
-                        </div>
-                        <div class="filter-group">
-                            <label>Responsible Person:</label>
-                            <div class="link-field-wrapper"></div>
-                        </div>
-                    </div>
-                </div>
-
-                <!-- Main Content Area -->
-                <div class="dashboard-main">
-                    <!-- Key Metrics Section -->
-                    <div class="metrics-section">
-                        <div class="metrics-grid">
-                            <div class="metric-card">
-                                <div class="metric-icon">
-                                    <i class="fa fa-bullseye"></i>
-                                </div>
-                                <div class="metric-content">
-                                    <div class="metric-value" id="total-objectives">0</div>
-                                    <div class="metric-label">Total Objectives</div>
-                                </div>
-                            </div>
-                            <div class="metric-card">
-                                <div class="metric-icon">
-                                    <i class="fa fa-check"></i>
-                                </div>
-                                <div class="metric-content">
-                                    <div class="metric-value" id="completed-objectives">0</div>
-                                    <div class="metric-label">Completed</div>
-                                </div>
-                            </div>
-                            <div class="metric-card">
-                                <div class="metric-icon">
-                                    <i class="fa fa-clock-o"></i>
-                                </div>
-                                <div class="metric-content">
-                                    <div class="metric-value" id="in-progress-objectives">0</div>
-                                    <div class="metric-label">In Progress</div>
-                                </div>
-                            </div>
-                            <div class="metric-card">
-                                <div class="metric-icon">
-                                    <i class="fa fa-exclamation-triangle"></i>
-                                </div>
-                                <div class="metric-content">
-                                    <div class="metric-value" id="at-risk-objectives">0</div>
-                                    <div class="metric-label">At Risk</div>
-                                </div>
-                            </div>
-                            <div class="metric-card">
-                                <div class="metric-icon">
-                                    <i class="fa fa-bar-chart"></i>
-                                </div>
-                                <div class="metric-content">
-                                    <div class="metric-value" id="overall-progress">0%</div>
-                                    <div class="metric-label">Overall Progress</div>
-                                </div>
-                            </div>
-                            <div class="metric-card">
-                                <div class="metric-icon">
-                                    <i class="fa fa-heartbeat"></i>
-                                </div>
-                                <div class="metric-content">
-                                    <div class="metric-value" id="health-score">0</div>
-                                    <div class="metric-label">Health Score</div>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-
-                    <!-- Charts Section -->
-                    <div class="charts-section">
-                        <div class="chart-row">
-                            <div class="chart-container">
-                                <div class="chart-header">
-                                    <h4>Progress Distribution</h4>
-                                    <div class="chart-actions">
-                                        <button class="btn btn-sm btn-outline-secondary" onclick="UIControls.toggleChart('progress-chart')">
-                                            <i class="fa fa-expand"></i>
-                                        </button>
-                                    </div>
-                                </div>
-                                <div class="chart-body" id="progress-chart"></div>
-                            </div>
-                            <div class="chart-container">
-                                <div class="chart-header">
-                                    <h4>Timeline Analysis</h4>
-                                    <div class="chart-actions">
-                                        <button class="btn btn-sm btn-outline-secondary" onclick="UIControls.toggleChart('timeline-chart')">
-                                            <i class="fa fa-expand"></i>
-                                        </button>
-                                    </div>
-                                </div>
-                                <div class="chart-body" id="timeline-chart"></div>
-                            </div>
-                        </div>
-                        <div class="chart-row">
-                            <div class="chart-container">
-                                <div class="chart-header">
-                                    <h4>Risk Analysis</h4>
-                                    <div class="chart-actions">
-                                        <button class="btn btn-sm btn-outline-secondary" onclick="UIControls.toggleChart('risk-chart')">
-                                            <i class="fa fa-expand"></i>
-                                        </button>
-                                    </div>
-                                </div>
-                                <div class="chart-body" id="risk-chart"></div>
-                            </div>
-                            <div class="chart-container">
-                                <div class="chart-header">
-                                    <h4>Performance Trends</h4>
-                                    <div class="chart-actions">
-                                        <button class="btn btn-sm btn-outline-secondary" onclick="UIControls.toggleChart('trends-chart')">
-                                            <i class="fa fa-expand"></i>
-                                        </button>
-                                    </div>
-                                </div>
-                                <div class="chart-body" id="trends-chart"></div>
-                            </div>
-                        </div>
-                    </div>
-
-                    <!-- Hierarchical Table Section -->
-                    <div class="objectives-section">
-                        <div class="hierarchical-table">
-                            <div class="table-header">
-                                <h3>Objectives and Key Results</h3>
-                                <div class="table-actions">
-                                    <button class="btn btn-sm btn-outline-primary" onclick="HierarchyManager.expandAll()">
-                                        <i class="fa fa-expand"></i> Expand All
-                                    </button>
-                                    <button class="btn btn-sm btn-outline-secondary" onclick="HierarchyManager.collapseAll()">
-                                        <i class="fa fa-compress"></i> Collapse All
-                                    </button>
-                                </div>
-                            </div>
-                            <div class="table-responsive">
-                                <table class="hierarchy-table" id="hierarchy-table">
-                                    <thead>
-                                        <tr>
-                                            <th>ID</th>
-                                            <th>Description</th>
-                                            <th>OKR Type</th>
-                                            <th>Progress</th>
-                                            <th>OKR Score</th>
-                                            <th>Target Date</th>
-                                            <th>Last Check-In</th>
-                                            <th>Owner</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody id="hierarchy-tbody">
-                                        <!-- Data will be populated here -->
-                                    </tbody>
-                                </table>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        `;
+    loadTemplate(page) {
+        // Frappe way: Use the proper Frappe template loading method
+        frappe.call({
+            method: 'okr_addon.okr_addon.page.okr_dashboard.okr_dashboard.get_dashboard_template',
+            callback: (r) => {
+                if (r.message) {
+                    // Use the template content directly
+                    $(page.body).html(r.message);
+                    // Initialize components after template is loaded
+                    this.initializeComponents();
+                    this.loadInitialData();
+                } else {
+                    console.warn('Failed to load template via Frappe method, using fallback');
+                    $(page.body).html(this.getFallbackTemplate());
+                    this.initializeComponents();
+                    this.loadInitialData();
+                }
+            },
+            error: (r) => {
+                console.warn('Error loading template via Frappe method, using fallback:', r);
+            }
+        });
     },
-
+    
     initializeComponents() {
         FilterManager.init();
         UIControls.addScrollListener();

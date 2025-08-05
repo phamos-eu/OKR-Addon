@@ -581,3 +581,15 @@ def export_to_pdf(objectives):
     """Export data to PDF format"""
     # Implementation for PDF export
     return {"message": "PDF export functionality to be implemented"} 
+
+@frappe.whitelist()
+def get_dashboard_template():
+    """Get the OKR dashboard template in the proper Frappe way"""
+    try:
+        # Use Frappe's template rendering system
+        template_path = "okr_addon/okr_addon/page/okr_dashboard/template/okr_template.html"
+        template_content = frappe.render_template(template_path, {})
+        return template_content
+    except Exception as e:
+        frappe.log_error(f"Error loading OKR dashboard template: {e}")
+        return None 
